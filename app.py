@@ -1,6 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
-
+st.title("🤖 Gemini Chatbot")
 # Load API key from Streamlit secrets
 api_key = st.secrets.get("GOOGLE_API_KEY")
 
