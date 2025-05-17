@@ -1,49 +1,53 @@
+import os
 import streamlit as st
-import google.generativeai as genai
-st.title("🤖 Gemini Chatbot")
-# Load API key from Streamlit secrets
-api_key = st.secrets.get("GOOGLE_API_KEY")
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-if not api_key:
-    st.error("Please set your GOOGLE_API_KEY in Streamlit secrets.")
+# Get your Gemini API key from Streamlit secrets
+if "GOOGLE_API_KEY" in st.secrets:
+    os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+else:
+    st.error("GOOGLE_API_KEY not found in secrets. Please add it.")
     st.stop()
 
-# Configure Gemini API
-genai.configure(api_key=api_key)
+# Initialize the LLM
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
-# Create a Gemini model instance
-model = genai.GenerativeModel("gemini-1.5-flash")
-
-# Set up Streamlit page
+# Streamlit UI Setup
 st.set_page_config(page_title="Gemini Chatbot", page_icon="🤖")
 st.title("🤖 Gemini Chatbot")
 
-# Initialize chat session
-if "chat" not in st.session_state:
-    st.session_state.chat = model.start_chat(history=[])
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# Initialize chat history in session state
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = [SystemMessage(content="You are a helpful assistant.")]
 
-# Display previous messages
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["text"])
+# Show previous messages
+for msg in st.session_state.chat_history:
+    if isinstance(msg, HumanMessage):
+        st.chat_message("user").markdown(msg.content)
+    elif isinstance(msg, AIMessage):
+        st.chat_message("ai").markdown(msg.content)
 
-# Input from user
-user_input = st.chat_input("Say something...")
+# User input
+user_input = st.chat_input("Type your message...")
 
 if user_input:
-    # Show user message
+    # Add user message to history and display
     st.chat_message("user").markdown(user_input)
-    st.session_state.messages.append({"role": "user", "text": user_input})
+    st.session_state.chat_history.append(HumanMessage(content=user_input))
 
-    # Get response from Gemini
+    # Stop on quit
+    if user_input.lower().strip() == "quit":
+        st.write("👋 Chat ended.")
+        st.stop()
+
+    # Get model response
     try:
-        response = st.session_state.chat.send_message(user_input)
-        ai_text = response.text
+        result = llm.invoke(st.session_state.chat_history)
+        ai_response = result.content
     except Exception as e:
-        ai_text = f"❌ Error: {e}"
+        ai_response = f"❌ Error: {e}"
 
-    # Show AI message
-    st.chat_message("ai").markdown(ai_text)
-    st.session_state.messages.append({"role": "ai", "text": ai_text})
+    # Add and show AI response
+    st.chat_message("ai").markdown(ai_response)
+    st.session_state.chat_history.append(AIMessage(content=ai_response))
